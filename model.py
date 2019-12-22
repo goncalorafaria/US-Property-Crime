@@ -289,7 +289,7 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
 
     par = 15
 
-    bvars = dict(nstates = nstates, y = y, n = n, nisor=nisor,isor=isor, Dr=Dr,Ir=Ir, Wrt=Wrt, nregions=nregions, region=region, T=T)
+    bvars = dict(nstates = nstates, y = y, n = n, nisor=nisor,isor=isor, Dr=Dr,Ir=Ir, Wrt=Wrt, region=region, T=T)
     models["fsis"] = (modelcode,varnames,bvars,par)
 
     # In[195]:
@@ -342,8 +342,8 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
 
     varnames = ['y_pred','theta']
 
-    bvars = dict(nstates = nstates, y = y, isor=isor,nisor=nisor ,n = n, Dr=Dr, Wr=Wr, nregions=nregions, region=region, T=T)
-    models["fcfc"] = (modelcode,varnames,bvars,par)
+    bvars = dict(nstates = nstates, y = y, isor=isor,nisor=nisor ,n = n, Dr=Dr, Wr=Wr, region=region, T=T)
+    models["fcfs"] = (modelcode,varnames,bvars,par)
     # In[193]:
 
     modelcode = '''
@@ -401,11 +401,59 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
 
     par = 15 + 52 + 2
 
-    varnames = ['y_pred','theta']
+    varnames = ['y_pred','theta','car.phi','cas.phi','car.tau','cas.tau','p']
 
     bvars = dict(nstates = nstates, y = y, isor=isor,nisor=nisor ,n = n, Dr=Dr, Wr=Wr, Ws=Ws, Ds=Ds, isos=isos, nisos=nisos, region=region, T=T)
     models["fccs"] = (modelcode,varnames,bvars,par)
+    
+    ######
 
+    modelcode = '''
+    model
+    {
+        # Likelihood
+        
+        for (t in 1:T){
+            for (s in 1:nstates) {
+                logit(mu.effect[s,t]) <- p + seffect[s]
+                
+                theta[s,t] <-  mu.effect[s,t]
+                
+                y[s,t] ~ dpois(theta[s,t]* n[s,t] )
+                y_pred[s,t] ~ dpois(theta[s,t]* n[s,t])     
+            }
+        }
+        
+        # Priors
+        
+        #--- Nation
+        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        p.beta ~ dnorm(0, 1.0E-3)
+
+        p ~ dnorm(p.beta, p.tau) 
+        
+        #--- CAR State
+        
+        cas.phi ~ dunif(-0.99, 0.99)
+        cas.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        
+        for(i in 1:length(nisos) ){ cas.beta[i] <- 0 }
+        
+        cas ~ dmnorm(cas.beta, cas.tau * (Ds - cas.phi*Ws))
+        
+        for (i in 1:length(nisos)) { seffect[nisos[i]+1] <- cas[i] }
+        
+        for (i in 1:length(isos)) { seffect[isos[i]+1] ~ dnorm(0, cas.tau) }
+        
+    }
+    '''
+
+    par = 15 + 52 + 2
+
+    varnames = ['y_pred','theta','cas.phi','cas.tau','p']
+
+    bvars = dict(nstates = nstates, y = y,n = n, Ws=Ws, Ds=Ds, isos=isos, nisos=nisos,T=T)
+    models["fics"] = (modelcode,varnames,bvars,par)
 
 
     ####
@@ -468,7 +516,7 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
 
     par = 15 + 52 + 2
 
-    bvars = dict(nstates = nstates, y = y, n = n, nisor=nisor, isor=isor, Dr=Dr, Wr=Wr, nregions=nregions, region=region, T=T)
+    bvars = dict(nstates = nstates, y = y, n = n, nisor=nisor, isor=isor, Dr=Dr, Wr=Wr, region=region, T=T)
     models["fcfl"] = (modelcode,varnames,bvars,par)
     # In[192]:
 
@@ -529,7 +577,7 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
 
     par = 15 + 52 + 3
 
-    bvars = dict(nstates = nstates, y = y, n = n,nisor=nisor , isor=isor,Dr=Dr, Wr=Wr, nregions=nregions, region=region, T=T)
+    bvars = dict(nstates = nstates, y = y, n = n,nisor=nisor , isor=isor,Dr=Dr, Wr=Wr, region=region, T=T)
     models["fcfq"] = (modelcode,varnames,bvars,par)
 
     return models
