@@ -124,10 +124,12 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
                             
                 theta[s,t] <-  mu.effect[s,t]
                 
-                y[s,t] ~ dpois(theta[s,t]* n[s,t] )
-                y_pred[s,t] ~ dpois(theta[s,t]* n[s,t])
+                lambda[s,t] <- theta[s,t]* n[s,t]
 
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
+                y[s,t] ~ dpois(lambda[s,t] )
+                y_pred[s,t] ~ dpois(lambda[s,t])
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
 
             }
         }
@@ -161,11 +163,13 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
                 logit(mu.effect[s,t]) <- p + ireffect[region[s]+1]
                 
                 theta[s,t] <-  mu.effect[s,t]
-                
-                y[s,t] ~ dpois( theta[s,t] * n[s,t] )
-                y_pred[s,t] ~ dpois(theta[s,t] * n[s,t])
 
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
+                lambda[s,t] <- theta[s,t]* n[s,t]
+
+                y[s,t] ~ dpois( lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
                 
             }
         }
@@ -207,10 +211,12 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
                 
                 theta[s,t] <-  mu.effect[s,t]
                 
-                y[s,t] ~ dpois( theta[s,t]* n[s,t] )
-                y_pred[s,t] ~ dpois(theta[s,t]* n[s,t])
+                lambda[s,t] <- theta[s,t]* n[s,t]
+
+                y[s,t] ~ dpois( lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])
                 
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
                 
             }
         }
@@ -263,24 +269,23 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
     model
     {
         # Likelihood
-        
-        for(s in 1:nstates){ eps[s,1] <- 0 }
+
+        for( s in 1:nstates ){ y_prev[s,1] <- 0 }
 
         for (t in 1:T){
             for (s in 1:nstates) {
                 logit(mu.effect[s,t]) <- p + reffect[region[s]+1]
-                log(mu.t[s,t]) <- t.beta[1] + t.beta[2] * eps[s,t]
 
-                theta[s,t] <-  mu.effect[s,t] * mu.t[s,t]
+                theta[s,t] <- (t!=1) * ( t.c * y_prev[s,t] + (1 - t.c) * mu.effect[s,t] ) + (t==1) * mu.effect[s,t]
                 
                 lambda[s,t] <- theta[s,t]* n[s,t]
 
                 y[s,t] ~ dpois(lambda[s,t])
-                y_pred[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])     
+                y_prev[s,t+1] <- y_pred[s,t]
 
                 plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
 
-                eps[s,t+1] <- log( ( (y[s,t] - y_pred[s,t]) / y_pred[s,t]) + 1 )
             }
         }
         
@@ -289,7 +294,9 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
         log.lik <- mean(plog.lik)
 
         #--- Time
-        for(i in 1:2){ t.beta[i] ~ dnorm(0, 1.0E-3) }
+        t.c ~ dbeta( t.a, t.b)
+        t.a ~ dgamma( 1.0E-3,  1.0E-3)
+        t.b ~ dgamma( 1.0E-3,  1.0E-3)
 
         #--- Nation
         p.tau ~ dgamma( 1.0E-3,  1.0E-3)
@@ -333,10 +340,12 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
                 
                 theta[s,t] <-  mu.effect[s,t]
                 
-                y[s,t] ~ dpois( theta[s,t]* n[s,t] )
-                y_pred[s,t] ~ dpois(theta[s,t]* n[s,t])
+                lambda[s,t] <- theta[s,t]* n[s,t]
 
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
+                y[s,t] ~ dpois( lambda[s,t] )
+                y_pred[s,t] ~ dpois(lambda[s,t])
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
             }
         }
         
@@ -384,11 +393,13 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
                 log(mu.effect[s,t]) <- p + reffect[region[s]+1] + seffect[s]
                 
                 theta[s,t] <-  mu.effect[s,t]
-                
-                y[s,t] ~ dpois(theta[s,t]* n[s,t] )
-                y_pred[s,t] ~ dpois(theta[s,t]* n[s,t])    
 
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t]) 
+                lambda[s,t] <- theta[s,t]* n[s,t]
+
+                y[s,t] ~ dpois(lambda[s,t] )
+                y_pred[s,t] ~ dpois(lambda[s,t])    
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t]) 
             }
         }
         
@@ -439,10 +450,12 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
                 
                 theta[s,t] <-  mu.effect[s,t]
                 
-                y[s,t] ~ dpois(theta[s,t]* n[s,t] )
-                y_pred[s,t] ~ dpois(theta[s,t]* n[s,t])     
+                lambda[s,t] <- theta[s,t]* n[s,t]
 
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])     
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
             }
         }
         
@@ -501,10 +514,12 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
                 
                 theta[s,t] <-  mu.effect[s,t]
                 
-                y[s,t] ~ dpois(theta[s,t]* n[s,t] )
-                y_pred[s,t] ~ dpois(theta[s,t]* n[s,t])     
+                lambda[s,t] <- theta[s,t]* n[s,t]
 
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])     
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
             }
         }
 
@@ -546,21 +561,21 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
     {
         # Likelihood
         
-        for(s in 1:nstates){ eps[s,1] <- 0 }
+        for( s in 1:nstates ){ y_prev[s,1] <- 0 }
 
         for (t in 1:T){
             for (s in 1:nstates) {
                 log(mu.effect[s,t]) <- p + seffect[s]
-                log(mu.t[s,t]) <- t.beta[1] + t.beta[2] * eps[s,t] 
 
-                theta[s,t] <-  mu.effect[s,t] * mu.t[s,t]
+                theta[s,t] <- (t!=1) * ( t.c * y_prev[s,t] + (1 - t.c) * mu.effect[s,t] ) + (t==1) * mu.effect[s,t]
                 
-                y[s,t] ~ dpois(theta[s,t]* n[s,t] )
-                y_pred[s,t] ~ dpois(theta[s,t]* n[s,t])     
+                lambda[s,t] <- theta[s,t]* n[s,t]
 
-                eps[s,t+1] <- log( ( (y[s,t] - y_pred[s,t]) / y_pred[s,t]) + 1 )
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])     
+                y_prev[s,t+1] <- y_pred[s,t]
 
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
             }
         }
 
@@ -570,7 +585,9 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
 
         #--- Time
         
-        for(i in 1:2){ t.beta[i] ~ dnorm(0, 1.0E-3) }
+        t.c ~ dbeta( t.a, t.b)
+        t.a ~ dgamma( 1.0E-3,  1.0E-3)
+        t.b ~ dgamma( 1.0E-3,  1.0E-3)
         
         #--- Nation
         p.tau ~ dgamma( 1.0E-3,  1.0E-3)
@@ -614,11 +631,13 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
                 log(mu.effect[s,t]) <- p + seffect[s]
                 
                 theta[s,t] <-  mu.effect[s,t]
-                
-                y[s,t] ~ dpois(theta[s,t]* n[s,t] )
-                y_pred[s,t] ~ dpois(theta[s,t]* n[s,t])     
 
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
+                lambda[s,t] <- theta[s,t]* n[s,t]
+                
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])     
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
             }
         }
 
@@ -663,21 +682,22 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
     {
         # Likelihood
         
-        for(s in 1:nstates){ eps[s,1] <- 0 }
+        for( s in 1:nstates ){ y_prev[s,1] <- 0 }
         
         for (t in 1:T){
             for (s in 1:nstates) {
                 log(mu.effect[s,t]) <- p + reffect[region[s]+1] + seffect[s]
-                log(mu.t[s,t]) <- t.beta[1] + t.beta[2]* eps[s,t] 
                 
-                theta[s,t] <-  mu.effect[s,t]* mu.t[s,t]
+                theta[s,t] <-  (t!=1) * ( t.c * y_prev[s,t] + (1 - t.c) * mu.effect[s,t] ) + (t==1) * mu.effect[s,t]
                 
-                y[s,t] ~ dpois( theta[s,t] * n[s,t] )
-                y_pred[s,t] ~ dpois( theta[s,t] * n[s,t])
-                
-                eps[s,t+1] <- log( ( (y[s,t] - y_pred[s,t]) / y_pred[s,t]) + 1 )
+                lambda[s,t] <- theta[s,t]* n[s,t]
 
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])     
+                y_prev[s,t+1] <- y_pred[s,t]
+                
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t],lambda[s,t])
             }
         }
         
@@ -687,7 +707,9 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
 
         #--- Time
         
-        for(i in 1:2){ t.beta[i] ~ dnorm(0, 1.0E-3) }
+        t.c ~ dbeta( t.a, t.b)
+        t.a ~ dgamma( 1.0E-3,  1.0E-3)
+        t.b ~ dgamma( 1.0E-3,  1.0E-3)
         
         #--- Nation
         p.tau ~ dgamma( 1.0E-3,  1.0E-3)
@@ -726,22 +748,23 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
     model
     {
         # Likelihood
-        
-        for(s in 1:nstates){ eps[s,1] <- 0 }
-        
+
+        for( s in 1:nstates ){ y_prev[s,1] <- 0 }
+                
         for (t in 1:T){
             for (s in 1:nstates) {
                 log(mu.effect[s,t]) <- p + reffect[region[s]+1] + seffect[s]
-                log(mu.t[s,t]) <- t.beta[1] + t.beta[2]* eps[s,t] 
                 
-                theta[s,t] <-  mu.effect[s,t]* mu.t[s,t]
+                theta[s,t] <- (t!=1) * ( t.c * y_pred[s,t] + (1 - t.c) * mu.effect[s,t] ) + (t==1) * mu.effect[s,t]
                 
-                y[s,t] ~ dpois( theta[s,t] * n[s,t] )
-                y_pred[s,t] ~ dpois( theta[s,t] * n[s,t])
-                
-                eps[s,t+1] <- log( ( (y[s,t] - y_pred[s,t]) / y_pred[s,t]) + 1 )
+                lambda[s,t] <- theta[s,t]* n[s,t]
 
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])     
+                y_prev[s,t+1] <- y_pred[s,t]
+                
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
             }
         }
         
@@ -751,7 +774,9 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
 
         #--- Time
         
-        for(i in 1:2){ t.beta[i] ~ dnorm(0, 1.0E-3) }
+        t.c ~ dbeta( t.a, t.b)
+        t.a ~ dgamma( 1.0E-3,  1.0E-3)
+        t.b ~ dgamma( 1.0E-3,  1.0E-3)
         
         #--- Nation
         p.tau ~ dgamma( 1.0E-3,  1.0E-3)
@@ -784,21 +809,22 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
     {
         # Likelihood
         
-        for(s in 1:nstates){ eps[s,1] <- 0 }
+        for( s in 1:nstates ){ y_prev[s,1] <- 0 }
         
         for (t in 1:T){
             for (s in 1:nstates) {
                 log(mu.effect[s,t]) <- p + seffect[s]
-                log(mu.t[s,t]) <- t.beta[1] + t.beta[2] * eps[s,t]
                 
-                theta[s,t] <- mu.effect[s,t] * mu.t[s,t]
+                theta[s,t] <- (t!=1) * ( t.c * y_pred[s,t] + (1 - t.c) * mu.effect[s,t] ) + (t==1) * mu.effect[s,t]
                 
-                y[s,t] ~ dpois(theta[s,t] * n[s,t])
-                y_pred[s,t] ~ dpois(theta[s,t] * n[s,t])
-                
-                eps[s,t+1] <- log( ( (y[s,t] - y_pred[s,t]) / y_pred[s,t]) + 1 )
+                lambda[s,t] <- theta[s,t]* n[s,t]
 
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])     
+                y_prev[s,t+1] <- y_pred[s,t]
+                
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
             }
         }
         
@@ -808,7 +834,9 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
 
         #--- Time
         
-        for(i in 1:2){ t.beta[i] ~ dnorm(0, 1.0E-3) }
+        t.c ~ dbeta( t.a, t.b)
+        t.a ~ dgamma( 1.0E-3,  1.0E-3)
+        t.b ~ dgamma( 1.0E-3,  1.0E-3)
         
         #--- Nation
         p.tau ~ dgamma( 1.0E-3,  1.0E-3)
@@ -838,21 +866,20 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
     model
     {
         # Likelihood
-        
-        for(s in 1:nstates){ eps[s,1] <- 0 }
-        
+                
         for (t in 1:T){
             for (s in 1:nstates) {
                 log(mu.effect[s,t]) <- p + seffect[s]
                 
                 theta[s,t] <-  mu.effect[s,t]
-                
-                y[s,t] ~ dpois( theta[s,t] * n[s,t] )
-                y_pred[s,t] ~ dpois( theta[s,t] * n[s,t])
-                
-                eps[s,t+1] <- log( ( (y[s,t] - y_pred[s,t]) / y_pred[s,t]) + 1 )
 
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
+                lambda[s,t] <- theta[s,t]* n[s,t]
+                
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])
+                
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
             }
         }
         
@@ -882,68 +909,6 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
 
     ###
 
-    modelcode = '''
-    model
-    {
-        # Likelihood
-        
-        for(s in 1:nstates){ eps[s,1] <- 0 }
-        
-        for (t in 1:T){
-            for (s in 1:nstates) {
-                log(mu.effect[s,t]) <- p + reffect[region[s]+1] + seffect[s]
-                log(mu.t[s,t]) <- t.beta[1] + t.beta[2]* eps[s,t] + t.beta[3]* eps[s,t]^2
-                
-                theta[s,t] <-  mu.effect[s,t] * mu.t[s,t]
-                
-                y[s,t] ~ dpois(theta[s,t] * n[s,t] )
-                y_pred[s,t] ~ dpois( theta[s,t]* n[s,t])  
-                
-                eps[s,t+1] <- log( ( (y[s,t] - y_pred[s,t]) / y_pred[s,t]) + 1 )
-
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
-            }
-        }
-        
-        # Priors
-
-        log.lik <- mean(plog.lik)
-        
-        #--- Time
-        
-        for(i in 1:3){ t.beta[i] ~ dnorm(0, 1.0E-3) }
-        
-        #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
-
-        p ~ dnorm(p.beta, p.tau) 
-        
-        #--- State iid
-        
-        for(s in 1:(nstates) ){ seffect[s] ~ dnorm(0, 1.0E-3) }
-        
-        #--- CAR Region
-        
-        car.phi ~ dunif(-0.99, 0.99)
-        car.tau ~ dgamma( 1.0E-3,  1.0E-3)
-                
-        car ~ dmnorm(rep(0, length(nisor), car.tau * Dr %*% (Ir - car.phi*Wr))
-        
-        for (i in 1:length(nisor)) { reffect[nisor[i]+1] <- car[i] }
-        for (i in 1:length(isor)) { reffect[isor[i]+1] ~ dnorm(0, car.tau) }
-        
-        
-    }
-    '''
-
-    varnames = ['y_pred','t.beta','theta','log.lik']
-
-    par = 15 + 52 + 3
-
-    bvars = dict(nstates = nstates, y = y, n = n,nisor=nisor , isor=isor,Dr=Dr, Wr=Wr,Ir=Ir, region=region, T=T)
-    models["fcfq"] = (modelcode,varnames,bvars,par)
-    
     #
 
     modelcode = '''
@@ -951,34 +916,35 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
     {
         # Likelihood
 
-        for(s in 1:nstates){ eps[s,1] <- 0 }
+        for( s in 1:nstates ){ y_prev[s,1] <- 0 }
         
         for (t in 1:T){
             for (s in 1:nstates) {
                 log(mu.effect[s,t]) <- p + seffect[s]
-                log(mu.t[s,t]) <- t.beta[1] + t.beta[2]* eps[s,t] 
-
-                theta[s,t] <-  mu.t[s,t] * mu.effect[s,t]
                 
-                y[s,t] ~ dpois(theta[s,t] * n[s,t] )
+                theta[s,t] <- (t!=1) * ( t.c * y_pred[s,t] + (1 - t.c) * mu.effect[s,t] ) + (t==1) * mu.effect[s,t]
                 
-                y_pred[s,t] ~ dpois(theta[s,t] * n[s,t])     
+                lambda[s,t] <- theta[s,t]* n[s,t]
 
-                eps[s,t+1] <- log( ( (y[s,t] - y_pred[s,t]) / y_pred[s,t]) + 1 )
+                y[s,t] ~ dpois(lambda[s,t])
+                
+                y_pred[s,t] ~ dpois(lambda[s,t])     
+                y_prev[s,t+1] <- y_pred[s,t]
 
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
             }
         }
 
         #
-        mse <- mean(eps)
         log.lik <- mean(plog.lik)
         
         # Priors
         
         #--- Time
         
-        for(i in 1:2){ t.beta[i] ~ dnorm(0, 1.0E-3) }
+        t.c ~ dbeta( t.a, t.b)
+        t.a ~ dgamma( 1.0E-3,  1.0E-3)
+        t.b ~ dgamma( 1.0E-3,  1.0E-3)
 
         #--- Nation
         p.tau ~ dgamma( 1.0E-3,  1.0E-3)
@@ -1004,7 +970,7 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
 
     par = 15 + 52 + 2
 
-    varnames = ['y_pred','theta','mse','log.lik']
+    varnames = ['y_pred','theta','log.lik']
 
     bvars = dict(nstates = nstates, y = y,n = n, Wst=Wst, Ds=Ds, Is= Is, isos=isos, nisos=nisos,T=T)
     models["fisl"] = (modelcode,varnames,bvars,par)
@@ -1016,34 +982,35 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
     {
         # Likelihood
 
-        for(s in 1:nstates){ eps[s,1] <- 0 }
+        for( s in 1:nstates ){ y_pred[s,1] <- 0 }
 
         for (t in 1:T){
             for (s in 1:nstates) {
                 logit(mu.effect[s,t]) <- p + seffect[s]
-                logit(mu.t[s,t]) <- t.beta[1] + t.beta[2] * eps[s,t] 
 
-                theta[s,t] <-  mu.t[s,t] * mu.effect[s,t]
+                theta[s,t] <-  (t!=1) * ( t.c * y_pred[s,t] + (1 - t.c) * mu.effect[s,t] ) + (t==1) * mu.effect[s,t]
                 
+                lambda[s,t] <- theta[s,t]* n[s,t]
+
                 y[s,t] ~ dnegbin( theta[s,t], n[s,t] )
 
-                y_pred[s,t] ~ dnegbin( theta[s,t], n[s,t] )     
+                y_pred[s,t+1] ~ dnegbin( theta[s,t], n[s,t] )     
 
-                eps[s,t+1] <- log( ( (y[s,t] - y_pred[s,t]) / y_pred[s,t]) + 1 )
 
                 plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
             }
         }
 
         #
-        mse <- mean(eps)
         log.lik <- mean(plog.lik)
         
         # Priors
         
         #--- Time
         
-        for(i in 1:2){ t.beta[i] ~ dnorm(0, 1.0E-3) }
+        t.c ~ dbeta( t.a, t.b)
+        t.a ~ dgamma( 1.0E-3,  1.0E-3)
+        t.b ~ dgamma( 1.0E-3,  1.0E-3)
 
         #--- Nation
         p.tau ~ dgamma( 1.0E-3,  1.0E-3)
@@ -1069,7 +1036,7 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
 
     par = 15 + 52 + 2
 
-    varnames = ['y_pred','theta','mse','log.lik']
+    varnames = ['y_pred','theta','log.lik']
 
     bvars = dict(nstates = nstates, y = y,n = n, Wst=Wst, Ds=Ds, Is= Is, isos=isos, nisos=nisos,T=T)
     models["xfisl"] = (modelcode,varnames,bvars,par)
