@@ -1,0 +1,38 @@
+---
+title: "Data Exploration"
+author: "Margarida Campos & Gonçalo Faria"
+date: "12/26/2019"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r results='hide', message=FALSE, warning=FALSE}
+library(highcharter)
+library(dplyr)
+load("./data_exploration.RData")
+
+```
+## Data Exploration
+
+### Property Crime
+
+```{r}
+hw_grid(hcmap("countries/us/us-all", data = property_crime_rates %>%
+        filter(Year == 2015), value = "per_capita",
+      joinBy = c("name", "State"), name = "Property Crime per 100 Capita",
+      dataLabels = list(enabled = TRUE, format = '{point.name}'),
+      borderColor = "#FAFAFA", borderWidth = 0.1),
+      hcmap("countries/us/us-all", data = property_crime_rates %>%
+        filter(Year == 2016), value = "per_capita",
+      joinBy = c("name", "State"), name = "Property Crime per 100 Capita",
+      dataLabels = list(enabled = TRUE, format = '{point.name}'),
+      borderColor = "#FAFAFA", borderWidth = 0.1),
+      ncol = 2,
+      rowheight = 300)
+```
