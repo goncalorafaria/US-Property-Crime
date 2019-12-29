@@ -113,754 +113,431 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
     states, nstates = statei 
 
     models={}
-    modelcode = '''
-    model
-    {
-        # Likelihood
-        
-        for (t in 1:T){
-            for (s in 1:nstates) {
-                logit(mu.effect[s,t]) <- p
-                            
-                theta[s,t] <-  mu.effect[s,t]
-                
-                lambda[s,t] <- theta[s,t]* n[s,t]
-
-                y[s,t] ~ dpois(lambda[s,t] )
-                y_pred[s,t] ~ dpois(lambda[s,t])
-
-                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
-
-            }
-        }
-        
-        # Priors
-
-        log.lik <- mean(plog.lik)
-        
-        #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
-
-        p ~ dnorm(p.beta, p.tau) 
-        
-    }
-    '''
-
-    varnames = ['y_pred','theta','log.lik']
-    par = 3
-    bvars = dict(nstates = nstates, y = y, n = n, T=T)
-
-    models["fiis"] = (modelcode,varnames,bvars,par)
-    # In[164]:
-    modelcode = '''
-    model
-    {
-        # Likelihood
-        
-        for (t in 1:T){
-            for (s in 1:nstates) {
-                logit(mu.effect[s,t]) <- p + ireffect[region[s]+1]
-                
-                theta[s,t] <-  mu.effect[s,t]
-
-                lambda[s,t] <- theta[s,t]* n[s,t]
-
-                y[s,t] ~ dpois( lambda[s,t])
-                y_pred[s,t] ~ dpois(lambda[s,t])
-
-                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
-                
-            }
-        }
-        
-        # Priors
-
-        log.lik <- mean(plog.lik)
-        
-        #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
-
-        p ~ dnorm(p.beta, p.tau) 
-        
-        #--- iid Region
-        
-        ireffect.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        ireffect.beta ~ dnorm(0, 1.0E-3)
-        
-        for (i in 1:nregions) { ireffect[i] ~ dnorm(ireffect.beta, ireffect.tau) }
-        
-    }
-    '''
-
-    varnames = ['y_pred','theta','log.lik']
-    par = 15
-    bvars = dict(nstates = nstates, y = y, n = n, nregions=nregions, region=region, T=T)
-    models["ffis"] = (modelcode,varnames,bvars,par)
-
-    # In[187]:
-    modelcode = '''
-    model
-    {
-        # Likelihood
-        
-        for (t in 1:T){
-            for (s in 1:nstates) {
-                logit(mu.effect[s,t]) <- p + reffect[region[s]+1]
-                
-                theta[s,t] <-  mu.effect[s,t]
-                
-                lambda[s,t] <- theta[s,t]* n[s,t]
-
-                y[s,t] ~ dpois( lambda[s,t])
-                y_pred[s,t] ~ dpois(lambda[s,t])
-                
-                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
-                
-            }
-        }
-        
-        # Priors
-
-        log.lik <- mean(plog.lik)
-        
-        #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
-
-        p ~ dnorm(p.beta, p.tau) 
-        
-        #--- CAR Region
-        
-        car.phi ~ dunif(-0.99, 0.99)
-        car.tau ~ dgamma( 1.0E-3,  1.0E-3)
-                
-        car ~ dmnorm(rep(0, length(nisor), car.tau * Dr %*% (Ir - car.phi*Wr))
-        
-        for (i in 1:length(nisor)) { reffect[nisor[i]+1] <- car[i] }
-        
-        for (i in 1:length(isor)) { reffect[isor[i]+1] ~ dnorm(0, car.tau) }
-            
-    }
-    '''
-
-    varnames = ['y_pred','theta','log.lik']
-
-    par = 15
-
-    bvars = dict(
-        nstates = nstates, 
-        y = y, 
-        n = n, 
-        Dr=Dr, 
-        Wr=Wr,
-        Ir=Ir,
-        isor=isor,
-        nisor=nisor, 
-        region=region, 
-        T=T)
-
-    models["fcis"] = (modelcode,varnames,bvars,par)
-
-    
-    # In[189]:
-    modelcode = '''
-    model
-    {
-        # Likelihood
-
-        for( s in 1:nstates ){ y_prev[s,1] <- 0 }
-
-        for (t in 1:T){
-            for (s in 1:nstates) {
-                logit(mu.effect[s,t]) <- p + reffect[region[s]+1]
-
-                theta[s,t] <- (t!=1) * ( t.c * y_prev[s,t] + (1 - t.c) * mu.effect[s,t] ) + (t==1) * mu.effect[s,t]
-                
-                lambda[s,t] <- theta[s,t]* n[s,t]
-
-                y[s,t] ~ dpois(lambda[s,t])
-                y_pred[s,t] ~ dpois(lambda[s,t])     
-                y_prev[s,t+1] <- y_pred[s,t]
-
-                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
-
-            }
-        }
-        
-        # Priors
-
-        log.lik <- mean(plog.lik)
-
-        #--- Time
-        t.c ~ dbeta( t.a, t.b)
-        t.a ~ dgamma( 1.0E-3,  1.0E-3)
-        t.b ~ dgamma( 1.0E-3,  1.0E-3)
-
-        #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
-
-        p ~ dnorm(p.beta, p.tau) 
-        
-        #--- SAR Region
-        
-        sar.phi ~ dunif(-0.99, 0.99)
-        sar.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        
-        for(i in 1:length(nisor) ){ sar.beta[i] <- 0 }
-        
-        sar ~ dmnorm(sar.beta, sar.tau * (Ir - sar.phi*Wrt) %*% Dr %*% t(Ir - sar.phi*Wrt) )
-        
-        for (i in 1:length(nisor)) { reffect[nisor[i]+1] <- sar[i] }
-        for (i in 1:length(isor)) { reffect[isor[i]+1] ~ dnorm(0, sar.tau) }
-        
-    }
-    '''
-
-    varnames = ['y_pred','theta','log.lik']
-
-    par = 15
-
-    bvars = dict(nstates = nstates, y = y, n = n, nisor=nisor,isor=isor, Dr=Dr,Ir=Ir, Wrt=Wrt, region=region, T=T)
-    models["fsil"] = (modelcode,varnames,bvars,par)
-
-    
-    
-    # In[189]:
-    modelcode = '''
-    model
-    {
-        # Likelihood
-        
-        for (t in 1:T){
-            for (s in 1:nstates) {
-                logit(mu.effect[s,t]) <- p + reffect[region[s]+1]
-                
-                theta[s,t] <-  mu.effect[s,t]
-                
-                lambda[s,t] <- theta[s,t]* n[s,t]
-
-                y[s,t] ~ dpois( lambda[s,t] )
-                y_pred[s,t] ~ dpois(lambda[s,t])
-
-                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
-            }
-        }
-        
-        # Priors
-
-        log.lik <- mean(plog.lik)
-        
-        #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
-
-        p ~ dnorm(p.beta, p.tau) 
-        
-        #--- SAR Region
-        
-        sar.phi ~ dunif(-0.99, 0.99)
-        sar.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        
-        for(i in 1:length(nisor) ){ sar.beta[i] <- 0 }
-        
-        sar ~ dmnorm(sar.beta, sar.tau * (Ir - sar.phi*Wrt) %*% Dr %*% t(Ir - sar.phi*Wrt) )
-        
-        for (i in 1:length(nisor)) { reffect[nisor[i]+1] <- sar[i] }
-        for (i in 1:length(isor)) { reffect[isor[i]+1] ~ dnorm(0, sar.tau) }
-        
-    }
-    '''
-
-    varnames = ['y_pred','theta','log.lik']
-
-    par = 15
-
-    bvars = dict(nstates = nstates, y = y, n = n, nisor=nisor,isor=isor, Dr=Dr,Ir=Ir, Wrt=Wrt, region=region, T=T)
-    models["fsis"] = (modelcode,varnames,bvars,par)
-
-    # In[195]:
-
-    modelcode = '''
-    model
-    {
-        # Likelihood
-        
-        for (t in 1:T){
-            for (s in 1:nstates) {
-                log(mu.effect[s,t]) <- p + reffect[region[s]+1] + seffect[s]
-                
-                theta[s,t] <-  mu.effect[s,t]
-
-                lambda[s,t] <- theta[s,t]* n[s,t]
-
-                y[s,t] ~ dpois(lambda[s,t] )
-                y_pred[s,t] ~ dpois(lambda[s,t])    
-
-                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t]) 
-            }
-        }
-        
-        # Priors
-
-        log.lik <- mean(plog.lik)
-        
-        #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
-
-        p ~ dnorm(p.beta, p.tau) 
-        
-        #--- State iid
-        
-        for(s in 1:(nstates) ){ seffect[s] ~ dnorm(0, 1.0E-3) }
-        
-        #--- CAR Region
-        
-        car.phi ~ dunif(-0.99, 0.99)
-        car.tau ~ dgamma( 1.0E-3,  1.0E-3)
-                
-        car ~ dmnorm(rep(0, length(nisor), car.tau * Dr %*% (Ir - car.phi*Wr))
-        
-        for (i in 1:length(nisor)) { reffect[nisor[i]+1] <- car[i] }
-        
-        for (i in 1:length(isor)) { reffect[isor[i]+1] ~ dnorm(0, car.tau) }
-        
-    }
-    '''
-
-    par = 15 + 52
-
-    varnames = ['y_pred','theta','log.lik']
-
-    bvars = dict(nstates = nstates, y = y, isor=isor,nisor=nisor ,n = n, Dr=Dr, Wr=Wr, Ir=Ir, region=region, T=T)
-    models["fcfs"] = (modelcode,varnames,bvars,par)
-    # In[193]:
-
-    modelcode = '''
-    model
-    {
-        # Likelihood
-        
-        for (t in 1:T){
-            for (s in 1:nstates) {
-                log(mu.effect[s,t]) <- p + reffect[region[s]+1] + seffect[s]
-                
-                theta[s,t] <-  mu.effect[s,t]
-                
-                lambda[s,t] <- theta[s,t]* n[s,t]
-
-                y[s,t] ~ dpois(lambda[s,t])
-                y_pred[s,t] ~ dpois(lambda[s,t])     
-
-                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
-            }
-        }
-        
-        # Priors
-
-        log.lik <- mean(plog.lik)
-        
-        #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm( 0, 1.0E-5)
-        p ~ dnorm(p.beta, p.tau) 
-        
-        #--- CAR State
-        
-        cas.phi ~ dunif(-0.99, 0.99)
-
-        cas.tau ~ dgamma( 1.0E-1,  1.0E-1)
-                
-        cas ~ dmnorm(rep(0, length(nisos), cas.tau * Ds %*% (Is - cas.phi*Ws))
-        
-        for (i in 1:length(nisos)) { seffect[nisos[i]+1] <- cas[i] }
-        
-        for (i in 1:length(isos)) { seffect[isos[i]+1] ~ dnorm(0, cas.tau) }
-        
-        #--- CAR Region
-        
-        car.phi ~ dunif(-0.99, 0.99)
-        car.tau ~ dgamma( 1.0E-1,  1.0E-1)
-                
-        car ~ dmnorm(rep(0, length(nisor), car.tau * Dr %*% (Ir - car.phi*Wr))
-        
-        for (i in 1:length(nisor)) { reffect[nisor[i]+1] <- car[i] }
-        
-        for (i in 1:length(isor)) { reffect[isor[i]+1] ~ dnorm(0, car.tau) }
-        
-    }
-    '''
-
-    par = 15 + 52 + 2
-
-    varnames = ['y_pred','theta','car.phi','cas.phi','car.tau','cas.tau','p','log.lik']
-
-    bvars = dict(nstates = nstates, y = y, isor=isor,nisor=nisor ,n = n, Dr=Dr, Wr=Wr, Ir=Ir, Ws=Ws, Ds=Ds, Is=Is, isos=isos, nisos=nisos, region=region, T=T)
-    models["fccs"] = (modelcode,varnames,bvars,par)
     
     ######
-
-    modelcode = '''
-    model
-    {
-        # Likelihood
-        
-        for (t in 1:T){
-            for (s in 1:nstates) {
-                log(mu.effect[s,t]) <- p + seffect[s]
-                
-                theta[s,t] <-  mu.effect[s,t]
-                
-                lambda[s,t] <- theta[s,t]* n[s,t]
-
-                y[s,t] ~ dpois(lambda[s,t])
-                y_pred[s,t] ~ dpois(lambda[s,t])     
-
-                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
-            }
-        }
-
-        log.lik <- mean(plog.lik)
-        
-        # Priors
-        
-        #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
-
-        p ~ dnorm(p.beta, p.tau) 
-        
-        #--- CAR State
-        
-        cas.phi ~ dunif(-0.99, 0.99)
-        cas.tau ~ dgamma( 1.0E-3,  1.0E-3)
-                
-        cas ~ dmnorm(rep(0, length(nisos), cas.tau * Ds %*% (Is - cas.phi*Ws))
-        
-        for (i in 1:length(nisos)) { seffect[nisos[i]+1] <- cas[i] }
-        
-        for (i in 1:length(isos)) { seffect[isos[i]+1] ~ dnorm(0, cas.tau) }
-        
-    }
-    '''
-
-    par = 15 + 52 + 2
-
-    varnames = ['y_pred','theta','cas.phi','cas.tau','p','log.lik']
-
-    bvars = dict(nstates = nstates, y = y,n = n, Ws=Ws, Ds=Ds,Is=Is, isos=isos, nisos=nisos,T=T)
-    models["fics"] = (modelcode,varnames,bvars,par)
-
-    ######
-
-    modelcode = '''
-    model
-    {
-        # Likelihood
-        
-        for( s in 1:nstates ){ y_prev[s,1] <- 0 }
-
-        for (t in 1:T){
-            for (s in 1:nstates) {
-                log(mu.effect[s,t]) <- p + seffect[s]
-
-                theta[s,t] <- (t!=1) * ( t.c * y_prev[s,t] + (1 - t.c) * mu.effect[s,t] ) + (t==1) * mu.effect[s,t]
-                
-                lambda[s,t] <- theta[s,t]* n[s,t]
-
-                y[s,t] ~ dpois(lambda[s,t])
-                y_pred[s,t] ~ dpois(lambda[s,t])     
-                y_prev[s,t+1] <- y_pred[s,t]
-
-                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
-            }
-        }
-
-        log.lik <- mean(plog.lik)
-        
-        # Priors
-
-        #--- Time
-        
-        t.c ~ dbeta( t.a, t.b)
-        t.a ~ dgamma( 1.0E-3,  1.0E-3)
-        t.b ~ dgamma( 1.0E-3,  1.0E-3)
-        
-        #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
-
-        p ~ dnorm(p.beta, p.tau) 
-        
-        #--- CAR State
-        
-        cas.phi ~ dunif(-0.99, 0.99)
-        cas.tau ~ dgamma( 1.0E-3,  1.0E-3)
-                
-        cas ~ dmnorm(rep(0, length(nisos)), cas.tau * Ds %*% (Is - cas.phi*Ws))
-        
-        for (i in 1:length(nisos)) { seffect[nisos[i]+1] <- cas[i] }
-        
-        for (i in 1:length(isos)) { seffect[isos[i]+1] ~ dnorm(0, cas.tau) }
-        
-    }
-    '''
-
-    par = 15 + 52 + 2
-
-    varnames = ['y_pred','theta','cas.phi','cas.tau','p','log.lik']
-
-    bvars = dict(nstates = nstates, y = y,n = n, Ws=Ws, Ds=Ds,Is=Is, isos=isos, nisos=nisos,T=T)
-    models["ficl"] = (modelcode,varnames,bvars,par)
-
-
-
-    ####
-
-
-    modelcode = '''
-    model
-    {
-        # Likelihood
-        
-        for (t in 1:T){
-            for (s in 1:nstates) {
-                log(mu.effect[s,t]) <- p + seffect[s]
-                
-                theta[s,t] <-  mu.effect[s,t]
-
-                lambda[s,t] <- theta[s,t]* n[s,t]
-                
-                y[s,t] ~ dpois(lambda[s,t])
-                y_pred[s,t] ~ dpois(lambda[s,t])     
-
-                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
-            }
-        }
-
-        log.lik <- mean(plog.lik)
-        
-        # Priors
-        
-        #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
-
-        p ~ dnorm(p.beta, p.tau) 
-        
-        #--- SAR State
-        
-        sas.phi ~ dunif(-0.99, 0.99)
-        sas.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        
-        for(i in 1:length(nisos) ){ sas.beta[i] <- 0 }
-        
-        sas ~ dmnorm(sas.beta, sas.tau * (Is - sas.phi*Wst) %*% Ds %*% t(Is - sas.phi*Wst))
-        
-        for (i in 1:length(nisos)) { seffect[nisos[i]+1] <- sas[i] }
-        
-        for (i in 1:length(isos)) { seffect[isos[i]+1] ~ dnorm(0, sas.tau) }
-        
-    }
-    '''
-
-    par = 15 + 52 + 2
-
-    varnames = ['y_pred','theta','sas.phi','sas.tau','p','log.lik']
-
-    bvars = dict(nstates = nstates, y = y,n = n, Wst=Wst, Ds=Ds, Is= Is, isos=isos, nisos=nisos,T=T)
-    models["fiss"] = (modelcode,varnames,bvars,par)
-
-
-    ####
-
-    modelcode = '''
-    model
-    {
-        # Likelihood
-        
-        for( s in 1:nstates ){ y_prev[s,1] <- 0 }
-        
-        for (t in 1:T){
-            for (s in 1:nstates) {
-                log(mu.effect[s,t]) <- p + reffect[region[s]+1] + seffect[s]
-                
-                theta[s,t] <-  (t!=1) * ( t.c * y_prev[s,t] + (1 - t.c) * mu.effect[s,t] ) + (t==1) * mu.effect[s,t]
-                
-                lambda[s,t] <- theta[s,t]* n[s,t]
-
-                y[s,t] ~ dpois(lambda[s,t])
-                y_pred[s,t] ~ dpois(lambda[s,t])     
-                y_prev[s,t+1] <- y_pred[s,t]
-                
-
-                plog.lik[s,t] <- logdensity.pois(y[s,t],lambda[s,t])
-            }
-        }
-        
-        # Priors
-        
-        log.lik <- mean(plog.lik)
-
-        #--- Time
-        
-        t.c ~ dbeta( t.a, t.b)
-        t.a ~ dgamma( 1.0E-3,  1.0E-3)
-        t.b ~ dgamma( 1.0E-3,  1.0E-3)
-        
-        #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
-
-        p ~ dnorm(p.beta, p.tau) 
-        
-        #--- State iid
-        
-        for(s in 1:(nstates) ){ seffect[s] ~ dnorm(0, 1.0E-3) }
-        
-        #--- CAR Region
-        
-        car.phi ~ dunif(-0.99, 0.99)
-        car.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        
-        car ~ dmnorm(rep(0, length(nisor), car.tau * Dr %*% (Ir - car.phi*Wr))
-        
-        for (i in 1:length(nisor)) { reffect[nisor[i]+1] <- car[i] }
-        for (i in 1:length(isor)) { reffect[isor[i]+1] ~ dnorm(0, car.tau) }
-        
-        
-    }
-    '''
-
-    varnames = ['y_pred','t.beta','theta','log.lik']
-
-    par = 15 + 52 + 2
-
-    bvars = dict(nstates = nstates, y = y, n = n, nisor=nisor, isor=isor, Dr=Dr, Wr=Wr,Ir=Ir, region=region, T=T)
-    models["fcfl"] = (modelcode,varnames,bvars,par)
-
-    ###
-
-    modelcode = '''
-    model
-    {
-        # Likelihood
-
-        for( s in 1:nstates ){ y_prev[s,1] <- 0 }
-                
-        for (t in 1:T){
-            for (s in 1:nstates) {
-                log(mu.effect[s,t]) <- p + reffect[region[s]+1] + seffect[s]
-                
-                theta[s,t] <- (t!=1) * ( t.c * y_pred[s,t] + (1 - t.c) * mu.effect[s,t] ) + (t==1) * mu.effect[s,t]
-                
-                lambda[s,t] <- theta[s,t]* n[s,t]
-
-                y[s,t] ~ dpois(lambda[s,t])
-                y_pred[s,t] ~ dpois(lambda[s,t])     
-                y_prev[s,t+1] <- y_pred[s,t]
-                
-
-                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
-            }
-        }
-        
-        # Priors
-        
-        log.lik <- mean(plog.lik)
-
-        #--- Time
-        
-        t.c ~ dbeta( t.a, t.b)
-        t.a ~ dgamma( 1.0E-3,  1.0E-3)
-        t.b ~ dgamma( 1.0E-3,  1.0E-3)
-        
-        #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
-
-        p ~ dnorm(p.beta, p.tau) 
-        
-        #--- State iid
-        
-        for(s in 1:(nstates) ){ seffect[s] ~ dnorm(0, 1.0E-3) }
-
-        for(r in 1:(nregions) ){ reffect[r] ~ dnorm(0, 1.0E-3) }
-        
-        
-    }
-    '''
-
-    varnames = ['y_pred','t.beta','theta','log.lik']
-
-    par = 15 + 52 + 2
-
-    bvars = dict(nstates = nstates, nregions=nregions, region=region, y=y, n=n, T=T)
-    models["fffl"] = (modelcode,varnames,bvars,par)
-
-    # In[192]:
-
-
-    modelcode = '''
-    model
-    {
-        # Likelihood
-        
-        for( s in 1:nstates ){ y_prev[s,1] <- 0 }
-        
-        for (t in 1:T){
-            for (s in 1:nstates) {
-                log(mu.effect[s,t]) <- p + seffect[s]
-                
-                theta[s,t] <- (t!=1) * ( t.c * y_pred[s,t] + (1 - t.c) * mu.effect[s,t] ) + (t==1) * mu.effect[s,t]
-                
-                lambda[s,t] <- theta[s,t]* n[s,t]
-
-                y[s,t] ~ dpois(lambda[s,t])
-                y_pred[s,t] ~ dpois(lambda[s,t])     
-                y_prev[s,t+1] <- y_pred[s,t]
-                
-
-                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
-            }
-        }
-        
-        # Priors
-        
-        log.lik <- mean(plog.lik)
-
-        #--- Time
-        
-        t.c ~ dbeta( t.a, t.b)
-        t.a ~ dgamma( 1.0E-3,  1.0E-3)
-        t.b ~ dgamma( 1.0E-3,  1.0E-3)
-        
-        #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
-
-        p ~ dnorm(p.beta, p.tau) 
-        
-        #--- State iid
-        
-        for(s in 1:(nstates) ){ seffect[s] ~ dnorm(0, 1.0E-3) }
-
-    }
-    '''
-
-    varnames = ['y_pred','t.beta','theta','log.lik']
-
-    par = 15 + 52 + 2
-
-    bvars = dict(nstates = nstates, y=y, n=n, T=T)
-    models["fifl"] = (modelcode,varnames,bvars,par)
-
 
      # In[192]:
 
+    ### PARSAR Model
+    modelcode = '''
+    model
+    {
+        # Likelihood
+
+        for( s in 1:nstates ){ theta[s,1] <- 0 }
+                
+        for (t in 1:T){
+            for (s in 1:nstates) {
+                log(mu.effect[s,t]) <- neffect + reffect[region[s]+1] + sieffect[s,t] + seffect[s]
+                
+                theta[s,t+1] <- mu.effect[s,t] 
+                
+                lambda[s,t] <- theta[s,t+1] * n[s,t]
+
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])                     
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
+
+            }
+        }
+
+        log.lik <- sum(plog.lik)
+
+        #### Parameters: ############### 
+        # Priors
+        #--- Time
+        
+        t.c ~ dnorm(0,1.0e-3)
+        
+        #--- Nation
+        neffect.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        neffect.beta ~ dnorm(0, 1.0E-3)
+
+        neffect ~ dnorm(neffect.beta, neffect.tau) 
+    
+        ##--- regional sas
+    
+        sar.phi ~ dunif(-0.99, 0.99)
+        sar.tau ~ dgamma( 1.0E-3,  1.0E-3)
+
+        sar.mu ~ dmnorm(rep(0, length(nisor)), 1.0E-3 * Ir)
+                
+        sar ~ dmnorm(sar.mu, sar.tau * Dr %*% (Ir - sar.phi*Wr) )
+        
+        for (i in 1:length(nisor)) { reffect[nisor[i]+1] <- sar[i] }
+        for (i in 1:length(isor)) { reffect[isor[i]+1] ~ dnorm(0, sar.tau) }
+        
+        # --- Epsilon
+
+        ## iid part
+
+        for(s in 1:(nstates) ){ sieffect[s,1] ~ dnorm(0, 1.0E-3) } 
+
+        for(t in 2:T){
+            for(s in 1:(nstates) ){ 
+                consteps[s,t] ~ dnorm(0, 1.0E-3);
+                sieffect[s,t] <-  (sieffect[s,t-1] - consteps[s,t]) * w + consteps[s,t];
+            }  
+        } 
+
+        ## auto regressive errors
+        sas.phi ~ dunif(-0.99, 0.99)
+        sas.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        w ~ dnorm(0, 1e-2)
+        
+        sas ~ dmnorm(rep(0, length(nisos)), sas.tau * Ds %*% (Is - sas.phi*Ws))
+
+        ## first element of the series AR not applied
+
+        for (i in 1:length(nisos)) { 
+            seffect[nisos[i]+1] <- sas[i] 
+        }
+        
+        for (i in 1:length(isos)) { 
+            isoeffect[i] ~ dnorm(0, sas.tau);
+            seffect[isos[i]+1] <- isoeffect[i];
+        }
+
+    }
+    '''
+
+    varnames = ['y_pred','theta','log.lik','t.c','w','sar.phi','sas.phi','lambda']
+
+    par = 15 + 52 + 2
+
+    bvars = dict(nstates = nstates,
+    region=region, y=y, n=n, T=T, 
+    isos=isos, nisos=nisos, Is=Is, Ds=Ds,Ws=Ws,
+    isor=isor, nisor=nisor, Ir=Ir, Dr=Dr,Wr=Wr)
+    models["hparsar"] = (modelcode,varnames,bvars,par)
+
+
+    ### PARSAR Model
+    modelcode = '''
+    model
+    {
+        # Likelihood
+
+        for( s in 1:nstates ){ theta[s,1] <- 0 }
+                
+        for (t in 1:T){
+            for (s in 1:nstates) {
+                log(mu.effect[s,t]) <- neffect + sieffect[s,t] + seffect[s]
+                
+                theta[s,t+1] <- mu.effect[s,t] 
+                
+                lambda[s,t] <- theta[s,t+1] * n[s,t]
+
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])                     
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
+
+            }
+        }
+
+        log.lik <- sum(plog.lik)
+
+        #### Parameters: ############### 
+        # Priors
+        #--- Time
+        
+        t.c ~ dnorm(0,1.0e-3)
+        
+        #--- Nation
+        neffect.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        neffect.beta ~ dnorm(0, 1.0E-3)
+
+        neffect ~ dnorm(neffect.beta, neffect.tau) 
+
+        # --- Epsilon
+
+        ## iid part
+
+        for(s in 1:(nstates) ){ sieffect[s,1] ~ dnorm(0, 1.0E-3) } 
+
+        for(t in 2:T){
+            for(s in 1:(nstates) ){ 
+                consteps[s,t] ~ dnorm(0, 1.0E-3);
+                sieffect[s,t] <-  (sieffect[s,t-1] - consteps[s,t]) * w + consteps[s,t];
+            }  
+        } 
+
+        ## auto regressive errors
+        sas.phi ~ dunif(-0.99, 0.99)
+        sas.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        w ~ dnorm(0, 1e-2)
+        
+        sas ~ dmnorm(rep(0, length(nisos)), sas.tau * Ds %*% (Is - sas.phi*Ws))
+
+        ## first element of the series AR not applied
+
+        for (i in 1:length(nisos)) { 
+            seffect[nisos[i]+1] <- sas[i] 
+        }
+        
+        for (i in 1:length(isos)) { 
+            isoeffect[i] ~ dnorm(0, sas.tau);
+            seffect[isos[i]+1] <- isoeffect[i];
+        }
+
+    }
+    '''
+
+    varnames = ['y_pred','theta','log.lik','w','sas.phi','lambda']
+
+    par = 15 + 52 + 2
+
+    bvars = dict(nstates = nstates,y=y, n=n, T=T, 
+    isos=isos, nisos=nisos, Is=Is, Ds=Ds,Ws=Ws)
+
+    models["sparsar"] = (modelcode,varnames,bvars,par)
+
+
+    ###
+
+    modelcode = '''
+    model
+    {
+        # Likelihood
+
+        for( s in 1:nstates ){ theta[s,1] <- 0 }
+                
+        for (t in 1:T){
+            for (s in 1:nstates) {
+                log(mu.effect[s,t]) <- neffect + sieffect[s,t]
+                
+                theta[s,t+1] <- mu.effect[s,t] 
+                
+                lambda[s,t] <- theta[s,t+1] * n[s,t]
+
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])                     
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
+
+            }
+        }
+
+        log.lik <- sum(plog.lik)
+
+        #### Parameters: ############### 
+        # Priors
+        #--- Time
+        
+        w ~ dnorm(0, 1e-2)
+        
+        #--- Nation
+        neffect.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        neffect.beta ~ dnorm(0, 1.0E-3)
+
+        neffect ~ dnorm(neffect.beta, neffect.tau) 
+
+        # --- Epsilon
+
+        ## iid part
+
+        for(s in 1:(nstates) ){ sieffect[s,1] ~ dnorm(0, 1.0E-3) } 
+
+        for(t in 2:T){
+            for(s in 1:(nstates) ){ 
+                consteps[s,t] ~ dnorm(0, 1.0E-3);
+                sieffect[s,t] <-  (sieffect[s,t-1] - consteps[s,t]) * w + consteps[s,t];
+            }  
+        } 
+
+        ## auto regressive errors
+
+    }
+    '''
+
+    varnames = ['y_pred','theta','log.lik','w','lambda']
+
+    par = 15 + 52 + 2
+
+    bvars = dict(nstates = nstates,y=y, n=n, T=T)
+    
+    models["parsar"] = (modelcode,varnames,bvars,par)
+
+
+
+    ###
+
+    modelcode = '''
+    model
+    {
+        # Likelihood
+
+        for( s in 1:nstates ){ theta[s,1] <- 0 }
+                
+        for (t in 1:T){
+            for (s in 1:nstates) {
+                log(mu.effect[s,t]) <- neffect + reffect[region[s]+1] 
+                
+                theta[s,t+1] <- (t!=1) * t.c * ( theta[s,t] - mu.effect[s,t] ) + mu.effect[s,t] 
+                
+                lambda[s,t] <- theta[s,t+1]* n[s,t]
+
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])     
+                
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
+
+                #msei_p[s,t] <- sieffect[s,t] ^ 2 
+                #msed_p[s,t] <- seffect[s,t] ^ 2
+            }
+        }
+        #msei <- mean(msei_p)
+        #msed <- mean(msed_p)
+
+        #mse <- msei + msed
+
+        log.lik <- sum(plog.lik)
+
+        #### Parameters: ############### 
+        # Priors
+        #--- Time
+        
+        w ~ dnorm(0,1.0e-3)
+        t.c ~ dnorm(0,1.0e-3)
+        
+        #--- Nation
+        neffect.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        neffect.beta ~ dnorm(0, 1.0E-3)
+
+        neffect ~ dnorm(neffect.beta, neffect.tau) 
+    
+        ##--- regional sas
+    
+        sar.phi ~ dunif(-0.99, 0.99)
+        sar.tau ~ dgamma( 1.0E-3,  1.0E-3)
+
+        sar.mu ~ dmnorm(rep(0, length(nisor)), 1.0E-3 * Ir)
+                
+        sar ~ dmnorm(sar.mu, sar.tau * Dr %*% (Ir - sar.phi*Wr))
+        
+        for (i in 1:length(nisor)) { reffect[nisor[i]+1] <- sar[i] }
+        for (i in 1:length(isor)) { reffect[isor[i]+1] ~ dnorm(0, sar.tau) }
+        
+        # --- Epsilon
+
+        ## iid part
+
+        for(s in 1:(nstates) ){ sieffect[s,1] ~ dnorm(0, 1.0E-3) } 
+
+        for(t in 2:T){
+            for(s in 1:(nstates) ){ 
+                consteps[s,t] ~ dnorm(0, 1.0E-3);
+                sieffect[s,t] <-  (sieffect[s,t-1] - consteps[s,t]) * w + consteps[s,t];
+            }  
+        }   
+        
+        
+    }
+    '''
+
+    varnames = ['y_pred','theta','log.lik','t.c','sar.phi','lambda']
+
+    par = 15 + 52 + 2
+
+    bvars = dict(nstates = nstates,
+    region=region, y=y, n=n, T=T, 
+    isor=isor, nisor=nisor, Ir=Ir, Dr=Dr, Wr=Wr)
+    models["hpart"] = (modelcode,varnames,bvars,par)
+
+    ###
+
+
+    ### PARSAR Model
+    modelcode = '''
+    model
+    {
+        # Likelihood
+
+        for( s in 1:nstates ){ theta[s,1] <- 0 }
+                
+        for (t in 1:T){
+            for (s in 1:nstates) {
+                log(mu.effect[s,t]) <- neffect + reffect[region[s]+1] + seffect[s]
+                
+                theta[s,t+1] <- mu.effect[s,t] 
+                
+                lambda[s,t] <- theta[s,t+1] * n[s,t]
+
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])                     
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
+
+            }
+        }
+
+        log.lik <- sum(plog.lik)
+
+        #### Parameters: ############### 
+        # Priors
+        #--- Time
+        
+        t.c ~ dnorm(0,1.0e-3)
+        
+        #--- Nation
+        neffect.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        neffect.beta ~ dnorm(0, 1.0E-3)
+
+        neffect ~ dnorm(neffect.beta, neffect.tau) 
+    
+        ##--- regional sas
+    
+        sar.phi ~ dunif(-0.99, 0.99)
+        sar.tau ~ dgamma( 1.0E-3,  1.0E-3)
+
+        sar.mu ~ dmnorm(rep(0, length(nisor)), 1.0E-3 * Ir)
+                
+        sar ~ dmnorm(sar.mu, sar.tau * Dr %*% (Ir - sar.phi*Wr) )
+        
+        for (i in 1:length(nisor)) { reffect[nisor[i]+1] <- sar[i] }
+        for (i in 1:length(isor)) { reffect[isor[i]+1] ~ dnorm(0, sar.tau) }
+        
+        # --- Epsilon
+
+        ## iid part
+
+        ## auto regressive errors
+        sas.phi ~ dunif(-0.99, 0.99)
+        sas.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        w ~ dnorm(0, 1e-2)
+        
+        sas ~ dmnorm(rep(0, length(nisos)), sas.tau * Ds %*% (Is - sas.phi*Ws))
+
+        ## first element of the series AR not applied
+
+        for (i in 1:length(nisos)) { 
+            seffect[nisos[i]+1] <- sas[i] 
+        }
+        
+        for (i in 1:length(isos)) { 
+            isoeffect[i] ~ dnorm(0, sas.tau);
+            seffect[isos[i]+1] <- isoeffect[i];
+        }
+
+    }
+    '''
+
+    varnames = ['y_pred','theta','log.lik','t.c','w','sar.phi','sas.phi','lambda']
+
+    par = 15 + 52 + 2
+
+    bvars = dict(nstates = nstates,
+    region=region, y=y, n=n, T=T, 
+    isos=isos, nisos=nisos, Is=Is, Ds=Ds,Ws=Ws,
+    isor=isor, nisor=nisor, Ir=Ir, Dr=Dr,Wr=Wr)
+    models["shallow"] = (modelcode,varnames,bvars,par)
+
+
+    ###
+
 
     modelcode = '''
     model
@@ -869,47 +546,231 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
                 
         for (t in 1:T){
             for (s in 1:nstates) {
-                log(mu.effect[s,t]) <- p + seffect[s]
+                log(mu.effect[s,t]) <- neffect + reffect[region[s]+1] + sieffect[s,t]
                 
-                theta[s,t] <-  mu.effect[s,t]
-
+                theta[s,t] <- mu.effect[s,t] 
+                
                 lambda[s,t] <- theta[s,t]* n[s,t]
-                
+
                 y[s,t] ~ dpois(lambda[s,t])
-                y_pred[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])     
                 
 
                 plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
+
+                #msei_p[s,t] <- sieffect[s,t] ^ 2 
+                #msed_p[s,t] <- seffect[s,t] ^ 2
             }
         }
-        
+        #msei <- mean(msei_p)
+        #msed <- mean(msed_p)
+
+        #mse <- msei + msed
+
+        log.lik <- sum(plog.lik)
+
+        #### Parameters: ############### 
         # Priors
+        #--- Time
         
-        log.lik <- mean(plog.lik)
+        w ~ dnorm(0,1.0e-3)
+        #t.c ~ dnorm(0,1.0e-3)
         
         #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
+        neffect.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        neffect.beta ~ dnorm(0, 1.0E-3)
 
-        p ~ dnorm(p.beta, p.tau) 
-        
-        #--- State iid
-        
-        for(s in 1:(nstates) ){ seffect[s] ~ dnorm(0, 1.0E-3) }
+        neffect ~ dnorm(neffect.beta, neffect.tau) 
+    
+        ##--- regional sas
+    
+        sar.phi ~ dunif(-0.99, 0.99)
+        sar.tau ~ dgamma( 1.0E-3,  1.0E-3)
 
+        sar.mu ~ dmnorm(rep(0, length(nisor)), 1.0E-3 * Ir)
+                
+        sar ~ dmnorm(sar.mu, sar.tau * (Ir - sar.phi*Wrt) %*% Dr %*% t(Ir - sar.phi*Wrt) )
+        
+        for (i in 1:length(nisor)) { reffect[nisor[i]+1] <- sar[i] }
+        for (i in 1:length(isor)) { reffect[isor[i]+1] ~ dnorm(0, sar.tau) }
+        
+        # --- Epsilon
+
+        ## iid part
+
+        for(s in 1:(nstates) ){ sieffect[s,1] ~ dnorm(0, 1.0E-3) } 
+
+        for(t in 2:T){
+            for(s in 1:(nstates) ){ 
+                consteps[s,t] ~ dnorm(0, 1.0E-3);
+                sieffect[s,t] <-  (sieffect[s,t-1] - consteps[s,t]) * w + consteps[s,t];
+            }  
+        }   
+        
+        
     }
     '''
 
-    varnames = ['y_pred','theta','log.lik']
+    varnames = ['y_pred','theta','log.lik','sar.phi','lambda']
 
     par = 15 + 52 + 2
 
-    bvars = dict(nstates = nstates, y=y, n=n, T=T)
-    models["fifs"] = (modelcode,varnames,bvars,par)
+    bvars = dict(nstates = nstates,
+    region=region, y=y, n=n, T=T, 
+    isor=isor, nisor=nisor, Ir=Ir, Dr=Dr, Wrt=Wrt)
+    models["ht"] = (modelcode,varnames,bvars,par)
+
+
+
+    modelcode = '''
+    model
+    {
+        # Likelihood
+                
+        for (t in 1:T){
+            for (s in 1:nstates) {
+                log(mu.effect[s,t]) <- neffect + reffect[region[s]+1] + sieffect[s,t]
+                
+                theta[s,t] <- mu.effect[s,t] 
+                
+                lambda[s,t] <- theta[s,t]* n[s,t]
+
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])     
+                
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
+
+                #msei_p[s,t] <- sieffect[s,t] ^ 2 
+                #msed_p[s,t] <- seffect[s,t] ^ 2
+            }
+        }
+        #msei <- mean(msei_p)
+        #msed <- mean(msed_p)
+
+        #mse <- msei + msed
+
+        log.lik <- sum(plog.lik)
+
+        #### Parameters: ############### 
+        # Priors
+        #--- Time
+        
+        w ~ dnorm(0,1.0e-3)
+        #t.c ~ dnorm(0,1.0e-3)
+        
+        #--- Nation
+        neffect.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        neffect.beta ~ dnorm(0, 1.0E-3)
+
+        neffect ~ dnorm(neffect.beta, neffect.tau) 
+    
+        ##--- regional sas
+    
+        sar.phi ~ dunif(-0.99, 0.99)
+        sar.tau ~ dgamma( 1.0E-3,  1.0E-3)
+
+        sar.mu ~ dmnorm(rep(0, length(nisor)), 1.0E-3 * Ir)
+                
+        sar ~ dmnorm(sar.mu, sar.tau * Dr %*% (Ir - sar.phi*Wr))
+        
+        for (i in 1:length(nisor)) { reffect[nisor[i]+1] <- sar[i] }
+        for (i in 1:length(isor)) { reffect[isor[i]+1] ~ dnorm(0, sar.tau) }
+        
+        # --- Epsilon
+
+        ## iid part
+
+        for(s in 1:(nstates) ){ sieffect[s,1] ~ dnorm(0, 1.0E-3) } 
+
+        for(t in 2:T){
+            for(s in 1:(nstates) ){ 
+                consteps[s,t] ~ dnorm(0, 1.0E-3);
+                sieffect[s,t] <-  (sieffect[s,t-1] - consteps[s,t]) * w + consteps[s,t];
+            }  
+        }   
+        
+        
+    }
+    '''
+
+    varnames = ['y_pred','theta','log.lik','sar.phi','lambda','sar.mu','sar']
+
+    par = 15 + 52 + 2
+
+    bvars = dict(nstates = nstates,
+    region=region, y=y, n=n, T=T, 
+    isor=isor, nisor=nisor, Ir=Ir, Dr=Dr, Wr=Wr)
+    models["hcarar"] = (modelcode,varnames,bvars,par)
+
+
 
     ###
 
-    #
+    modelcode = '''
+    model
+    {
+        # Likelihood
+
+        for( s in 1:nstates ){ theta[s,1] <- 0 }
+                
+        for (t in 1:T){
+            for (s in 1:nstates) {
+                log(mu.effect[s,t]) <- neffect + sieffect[s,t]
+                
+                theta[s,t+1] <- (t!=1) * t.c * ( theta[s,t] - mu.effect[s,t] ) + mu.effect[s,t] 
+                
+                lambda[s,t] <- theta[s,t+1]* n[s,t]
+
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])     
+                
+
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
+
+                #msei_p[s,t] <- sieffect[s,t] ^ 2 
+                #msed_p[s,t] <- seffect[s,t] ^ 2
+            }
+        }
+        #msei <- mean(msei_p)
+        #msed <- mean(msed_p)
+
+        #mse <- msei + msed
+
+        log.lik <- sum(plog.lik)
+
+        #### Parameters: ############### 
+        # Priors
+        #--- Time
+        
+        t.c ~ dnorm(0,1.0e-3)
+        
+        #--- Nation
+        neffect.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        neffect.beta ~ dnorm(0, 1.0E-3)
+
+        neffect ~ dnorm(neffect.beta, neffect.tau) 
+    
+        # --- Epsilon
+
+        ## iid part
+
+        for(t in 1:T){
+            for(s in 1:(nstates) ){ sieffect[s,t] ~ dnorm(0, 1.0E-3) }     
+        }
+        
+    }
+    '''
+
+    varnames = ['y_pred','theta','log.lik','t.c','lambda']
+
+    par = 15 + 52 + 2
+
+    bvars = dict(nstates = nstates,
+            y=y, n=n, T=T)
+    models["par"] = (modelcode,varnames,bvars,par)
+
+    ###
 
     modelcode = '''
     model
@@ -917,129 +778,212 @@ def mcodes(region_prior,state_prior,n , y, yeari, regioni, statei):
         # Likelihood
 
         for( s in 1:nstates ){ y_prev[s,1] <- 0 }
-        
+                
         for (t in 1:T){
             for (s in 1:nstates) {
-                log(mu.effect[s,t]) <- p + seffect[s]
+                log(mu.effect[s,t]) <- neffect + reffect[region[s]+1] + sieffect[s,t] + seffect[s,t]
                 
-                theta[s,t] <- (t!=1) * ( t.c * y_pred[s,t] + (1 - t.c) * mu.effect[s,t] ) + (t==1) * mu.effect[s,t]
+                theta[s,t] <-  mu.effect[s,t] 
                 
                 lambda[s,t] <- theta[s,t]* n[s,t]
 
                 y[s,t] ~ dpois(lambda[s,t])
-                
                 y_pred[s,t] ~ dpois(lambda[s,t])     
                 y_prev[s,t+1] <- y_pred[s,t]
+                
 
                 plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
+
+                msei_p[s,t] <- sieffect[s,t] ^ 2 
+                msed_p[s,t] <- seffect[s,t] ^ 2
             }
         }
+        msei <- mean(msei_p)
+        msed <- mean(msed_p)
 
-        #
-        log.lik <- mean(plog.lik)
-        
+        mse <- msei + msed
+
+        log.lik <- sum(plog.lik)
+
+        #### Parameters: ############### 
         # Priors
-        
         #--- Time
         
-        t.c ~ dbeta( t.a, t.b)
-        t.a ~ dgamma( 1.0E-3,  1.0E-3)
-        t.b ~ dgamma( 1.0E-3,  1.0E-3)
-
+        #t.c ~ dnorm(1,2)
+        
         #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
+        neffect.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        neffect.beta ~ dnorm(0, 1.0E-3)
 
-        p ~ dnorm(p.beta, p.tau) 
+        neffect ~ dnorm(neffect.beta, neffect.tau) 
+    
+        ##--- regional sas
+    
+        sar.phi ~ dunif(-0.99, 0.99)
+        sar.tau ~ dgamma( 1.0E-3,  1.0E-3)
+
+        sar.mu ~ dmnorm(rep(0, length(nisor)), 1.0E-3 * Ir)
+                
+        sar ~ dmnorm(sar.mu, sar.tau * (Ir - sar.phi*Wrt) %*% Dr %*% t(Ir - sar.phi*Wrt) )
         
-        #--- SAR State
+        for (i in 1:length(nisor)) { reffect[nisor[i]+1] <- sar[i] }
+        for (i in 1:length(isor)) { reffect[isor[i]+1] ~ dnorm(0, sar.tau) }
         
+        # --- Epsilon
+
+        ## iid part
+
+        for(t in 1:T){
+            for(s in 1:(nstates) ){ sieffect[s,t] ~ dnorm(0, 1.0E-3) }     
+        }
+
+        ## auto regressive errors
         sas.phi ~ dunif(-0.99, 0.99)
         sas.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        
+        w ~ dnorm(0, 2)
+
         for(i in 1:length(nisos) ){ sas.beta[i] <- 0 }
         
-        sas ~ dmnorm(sas.beta, sas.tau * (Is - sas.phi*Wst) %*% Ds %*% t(Is - sas.phi*Wst))
+        Wst_hat <- Is - sas.phi*Wst
+
+        for( t in 1:T ){
+            sas[1:length(nisos),t] ~ dmnorm(sas.beta, sas.tau * Wst_hat %*% Ds %*% t(Wst_hat))
+        }
+
+        ## first element of the series AR not applied
+
+        for (i in 1:length(nisos)) { 
+            seffect[nisos[i]+1,1] <- sas[i,1] 
+        }
         
-        for (i in 1:length(nisos)) { seffect[nisos[i]+1] <- sas[i] }
-        
-        for (i in 1:length(isos)) { seffect[isos[i]+1] ~ dnorm(0, sas.tau) }
+        for (i in 1:length(isos)) { 
+            isoeffect[i,1] ~ dnorm(0, sas.tau) ;
+            seffect[isos[i]+1,1] <- isoeffect[i,1];
+        }
+
+        ## follwing elements of the series. AR applied
+
+        for( t in 2:T){
+            for (i in 1:length(nisos)) { 
+                seffect[nisos[i]+1,t] <- sas[i,t] + w * sas[i,t-1];
+            }
+            for (i in 1:length(isos)) {
+                isoeffect[i,t] ~ dnorm(0, sas.tau);
+                seffect[isos[i]+1,t] <- isoeffect[i,t] + w * isoeffect[i,t-1];
+            }
+        }
         
     }
     '''
 
+    varnames = ['y_pred','theta','log.lik','w','sar.phi','sas.phi','mse','msei','msed','lambda']
+
     par = 15 + 52 + 2
 
-    varnames = ['y_pred','theta','log.lik']
+    bvars = dict(nstates = nstates,
+    region=region, y=y, n=n, T=T, 
+    isos=isos, nisos=nisos, Is=Is, Ds=Ds, Wst=Wst,
+    isor=isor, nisor=nisor, Ir=Ir, Dr=Dr, Wrt=Wrt)
+    models["hsar"] = (modelcode,varnames,bvars,par)
 
-    bvars = dict(nstates = nstates, y = y,n = n, Wst=Wst, Ds=Ds, Is= Is, isos=isos, nisos=nisos,T=T)
-    models["fisl"] = (modelcode,varnames,bvars,par)
 
     ###
+
 
     modelcode = '''
     model
     {
         # Likelihood
 
-        for( s in 1:nstates ){ y_pred[s,1] <- 0 }
-
+        for( s in 1:nstates ){ theta[s,1] <- 0 }
+                
         for (t in 1:T){
             for (s in 1:nstates) {
-                logit(mu.effect[s,t]) <- p + seffect[s]
-
-                theta[s,t] <-  (t!=1) * ( t.c * y_pred[s,t] + (1 - t.c) * mu.effect[s,t] ) + (t==1) * mu.effect[s,t]
                 
-                lambda[s,t] <- theta[s,t]* n[s,t]
+                logit(pop[s,t]) <- peffect
 
-                y[s,t] ~ dnegbin( theta[s,t], n[s,t] )
+                e[s,t] ~ dbin(pop[s,t] , n[s,t])
 
-                y_pred[s,t+1] ~ dnegbin( theta[s,t], n[s,t] )     
+                log(mu.effect[s,t]) <- neffect + reffect[region[s]+1] + sieffect[s,t]
+                
+                theta[s,t+1] <- (t!=1) * t.c * ( theta[s,t] - mu.effect[s,t] ) + mu.effect[s,t] 
+                
+                lambda[s,t] <- theta[s,t+1] * e[s,t]
 
+                y[s,t] ~ dpois(lambda[s,t])
+                y_pred[s,t] ~ dpois(lambda[s,t])                     
 
-                plog.lik[s,t] <- logdensity.pois(y[s,t], theta[s,t] * n[s,t])
+                plog.lik[s,t] <- logdensity.pois(y[s,t], lambda[s,t])
+
+                #msei_p[s,t] <- sieffect[s,t] ^ 2 
+                #msed_p[s,t] <- seffect[s,t] ^ 2
             }
         }
+        #msei <- mean(msei_p)
+        #msed <- mean(msed_p)
 
-        #
-        log.lik <- mean(plog.lik)
-        
+        #mse <- msei + msed
+
+        log.lik <- sum(plog.lik)
+
+        #### Parameters: ############### 
         # Priors
-        
+
+        ## --- pop
+
+        peffect.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        peffect.beta ~ dnorm(0, 1.0E-3)
+
+        peffect ~ dnorm(peffect.beta, peffect.tau)
+
         #--- Time
         
-        t.c ~ dbeta( t.a, t.b)
-        t.a ~ dgamma( 1.0E-3,  1.0E-3)
-        t.b ~ dgamma( 1.0E-3,  1.0E-3)
-
+        w ~ dnorm(0,1.0e-3)
+        t.c ~ dnorm(0,1.0e-3)
+        
         #--- Nation
-        p.tau ~ dgamma( 1.0E-3,  1.0E-3)
-        p.beta ~ dnorm(0, 1.0E-3)
+        neffect.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        neffect.beta ~ dnorm(0, 1.0E-3)
 
-        p ~ dnorm(p.beta, p.tau) 
+        neffect ~ dnorm(neffect.beta, neffect.tau) 
+    
+        ##--- regional sas
+    
+        sar.phi ~ dunif(-0.99, 0.99)
+        sar.tau ~ dgamma( 1.0E-3,  1.0E-3)
+
+        sar.mu ~ dmnorm(rep(0, length(nisor)), 1.0E-3 * Ir)
+                
+        sar ~ dmnorm(sar.mu, sar.tau * (Ir - sar.phi*Wrt) %*% Dr %*% t(Ir - sar.phi*Wrt) )
         
-        #--- SAR State
+        for (i in 1:length(nisor)) { reffect[nisor[i]+1] <- sar[i] }
+        for (i in 1:length(isor)) { reffect[isor[i]+1] ~ dnorm(0, sar.tau) }
         
-        sas.phi ~ dunif(-0.99, 0.99)
-        sas.tau ~ dgamma( 1.0E-3,  1.0E-3)
+        # --- Epsilon
+
+        ## iid part
+
+        for(s in 1:(nstates) ){ sieffect[s,1] ~ dnorm(0, 1.0E-3) } 
+
+        for(t in 2:T){
+            for(s in 1:(nstates) ){ 
+                consteps[s,t] ~ dnorm(0, 1.0E-3);
+                sieffect[s,t] <-  (sieffect[s,t-1] - consteps[s,t]) * w + consteps[s,t];
+            }  
+        }   
         
-        for(i in 1:length(nisos) ){ sas.beta[i] ~ dnorm(0, 0.01) }
-        
-        sas ~ dmnorm(sas.beta, sas.tau * (Is - sas.phi*Wst) %*% Ds %*% t(Is - sas.phi*Wst))
-        
-        for (i in 1:length(nisos)) { seffect[nisos[i]+1] <- sas[i] }
-        
-        for (i in 1:length(isos)) { seffect[isos[i]+1] ~ dnorm(0, sas.tau) }
         
     }
     '''
 
+    varnames = ['y_pred','theta','log.lik','t.c','sar.phi','lambda']
+
     par = 15 + 52 + 2
 
-    varnames = ['y_pred','theta','log.lik']
-
-    bvars = dict(nstates = nstates, y = y,n = n, Wst=Wst, Ds=Ds, Is= Is, isos=isos, nisos=nisos,T=T)
-    models["xfisl"] = (modelcode,varnames,bvars,par)
+    bvars = dict(nstates = nstates,
+    region=region, y=y, n=n, T=T, 
+    isor=isor, nisor=nisor, Ir=Ir,Dr=Dr, Wrt=Wrt)
+    models["bhpart"] = (modelcode,varnames,bvars,par)
 
     return models
 
