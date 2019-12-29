@@ -44,6 +44,27 @@ nstates = n.shape[0]
 
 ## diagnostics ----------------------------------------------------------
 
+def estimate_pd( log_likelihood ,chosen_log_likelihood_mean):
+    expected_log_likelihood_mean = np.mean(
+        log_likelihood
+    )
+    
+    pw = - 2 * ( expected_log_likelihood_mean -  chosen_log_likelihood_mean )
+    return pw
+
+def estimate_waic(likelihood_samples, pw):
+
+    expected_density_per_datapoint = np.mean(likelihood_samples, axis=(-1,-2) )
+    waic_c = - 2 * ( np.sum( np.log( expected_density_per_datapoint ) ) - pw )
+
+    return waic_c
+
+def estimate_dic(pd, chosen_log_likelihood_mean):
+    
+    dic_c = - 2 * (chosen_log_likelihood_mean - pd)
+
+    return dic_c
+
 def eplot(model, y, n, it = 10000, chains=4,sslice =1000, debug = False):
     samples = sample(model[0], model[2], varnames=model[1], chains=chains, trials=it)
     
@@ -53,76 +74,40 @@ def eplot(model, y, n, it = 10000, chains=4,sslice =1000, debug = False):
 
     #    plt.legend(loc="upper right")
     #    plt.show()
+    # 
+    # 'log.likelihood', 'likelihood',
         
     y_pred = np.mean( samples['y_pred'][:,:,-sslice:,:], axis=(-1,-2) )
-    loglikl = np.mean(
-        samples['log.lik'][:,-sslice:,:]
-        .ravel()
-    )
-    _lambda_me = np.mean( samples['lambda'][:,:,-sslice:,:], axis=(-1,-2) )
-    _lambda_mi = np.median( samples['lambda'][:,:,-sslice:,:], axis=(-1,-2) )
+
+    chosen = np.mean( samples['lambda'][:,:,-sslice:,:], axis=(-1,-2) ).ravel()
     
-    print("######################")
-    print("Log likelihood SMP: " + str(loglikl)) 
-    print("######################")
-    
-    loglikl_mean = np.sum(poisson.logpmf(y.ravel(),_lambda_me.ravel()))
-    loglikl_median = np.sum(poisson.logpmf(y.ravel(),_lambda_mi.ravel()))
-    
-    loglikl_mean_presented = np.sum(poisson.logpmf(y_pred.ravel(),_lambda_me.ravel()))
-    loglikl_median_presented = np.sum(poisson.logpmf(y_pred.ravel(),_lambda_mi.ravel()))
-    
-    y_predmean = n.ravel() * _lambda_me.ravel()
-    mse_mean = np.sum(((y.ravel()-y_predmean)/y.ravel())**2) 
-    
-    y_predmd = n.ravel() *_lambda_mi.ravel()
-    mse_md = np.sum(((y.ravel()-y_predmd)/y.ravel())**2) 
-    
-    aic_mean = 2* model[3] - 2 * loglikl_mean
-    aic_md = 2* model[3] - 2 * loglikl_median
-    sic_mean = 2* np.log(len(y.ravel()))*model[3] - 2 * loglikl_mean
-    sic_md = 2* np.log(len(y.ravel()))*model[3] - 2 * loglikl_median
-    
-    
-    ##
-    pd = - 2 * loglikl + 2 * loglikl_mean 
-    
-    print("pd :" + str(pd))
-    print("dic :" + str( -2 * loglikl_mean + 2 * pd))
-    ##
-    
-    print("######################")
-    
-    print("### mean: ---")
-    print("Log likelihood: " + str(loglikl_mean)) 
-    print("Log likelihood pred : " + str(loglikl_mean_presented)) 
-    print("aic: "+ str(aic_mean))
-    print("sic: "+ str(sic_mean))
-    print("dic:")
-    print("chi-square : " + str(mse_mean))
-    
-    print("### median: ---")
-    print("Log likelihood: " + str(loglikl_median))
-    print("Log likelihood pred : " + str(loglikl_median_presented)) 
-    print("aic: "+ str(aic_md))
-    print("sic: "+ str(sic_md))
-    print("chi-square : " + str(mse_md))
-    
-    print("### sampled: ---")
-    print("mse: " + str(np.sum(((y.ravel()-y_pred.ravel())/y.ravel())**2) ) )
+    chosen_log_likelihood_mean = np.sum(poisson.logpmf(y.ravel(),chosen))
+
+    pw = estimate_pd( samples['log.lik'][:,-sslice:,:] ,chosen_log_likelihood_mean)
+    waic = estimate_waic(samples['likelihood'], pw)
+    dic = estimate_dic(pw, chosen_log_likelihood_mean)
+    mse = np.mean((y.ravel()-y_pred.ravel())**2) 
+    likelihood = np.mean(samples['log.lik'][:,-sslice:,:].ravel())
+
+    print("pd :" + str(pw))
+    print("dic :" + str(dic))
+    print("waic :" + str(waic))
+    print("mse :" + str(mse))
+    print("likelihood :" + str(likelihood))
     
     print("######################")
     if debug:
         analyse_fit(model[1],samples)
     
-    plot_predictive(
-        n.ravel(),
-        y.ravel(), 
-        y_pred.ravel())
-    
-    eps = np.mean( ( y - y_pred) ** 2 / y ) 
-    print(eps)
-    
+        plot_predictive(
+            n.ravel(),
+            y.ravel(), 
+            y_pred.ravel())
+        
     plt.show()
 
-eplot(models[sys.argv[1]], y = y, n=n, it=int(sys.argv[2]), sslice=4000, debug=True)
+
+for k, model in models.items():
+    print(" Model: " + str(k))
+
+    eplot(model, y = y, n=n, it=40000, sslice=10000)
