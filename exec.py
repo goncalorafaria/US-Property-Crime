@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
 from core import *
-from model import build
+from model import build_propertycrime
 from scipy.stats import poisson
 import sys
 np.set_printoptions(precision=10)
@@ -18,7 +18,7 @@ np.random.seed(123)
 
 df = pd.read_csv("experiment1.csv")
 
-models=build()
+models=build_propertycrime()
 
 # dat treatment ----------------------------------------------------------
 
@@ -84,7 +84,7 @@ def eplot(model, y, n, it = 10000, chains=4,sslice =1000, debug = False):
     chosen_log_likelihood_mean = np.sum(poisson.logpmf(y.ravel(),chosen))
 
     pw = estimate_pd( samples['log.lik'][:,-sslice:,:] ,chosen_log_likelihood_mean)
-    waic = estimate_waic(samples['likelihood'], pw)
+    waic = estimate_waic(samples['likelihood'][:,:,-sslice:,:], pw)
     dic = estimate_dic(pw, chosen_log_likelihood_mean)
     mse = np.mean((y.ravel()-y_pred.ravel())**2) 
     likelihood = np.mean(samples['log.lik'][:,-sslice:,:].ravel())
@@ -110,4 +110,4 @@ def eplot(model, y, n, it = 10000, chains=4,sslice =1000, debug = False):
 for k, model in models.items():
     print(" Model: " + str(k))
 
-    eplot(model, y = y, n=n, it=40000, sslice=10000)
+    eplot(model, y = y, n=n, it=40000, sslice=5000)
