@@ -1,6 +1,6 @@
 to execute just do:
 
-python run.py
+$ python run.py
 
 
 model.py - contains the especification of the models. 
