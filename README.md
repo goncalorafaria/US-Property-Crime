@@ -15,4 +15,6 @@ data/ contains the parameters for the choosen model and the output of running th
 ## Authors
 
 Gonçalo Faria
+
+
 Margarida Campos
